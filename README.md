@@ -202,13 +202,3 @@ Running this demo costs approximately **₹0/month** on AWS free tier:
 - **Notifications:** Slack Incoming Webhooks
 
 ---
-
-## 👩‍💻 About
-
-Built by **Bhavika Chauhan** — DevOps & Cloud Engineer specialising in CI/CD pipelines, AWS infrastructure, and Docker/Kubernetes deployments.
-
-This is a portfolio project demonstrating exactly what I deliver to clients as a **CI/CD Pipeline Setup** service.
-
-📅 [Book a free 20-min DevOps audit call](https://calendly.com/bhavikachauhan)
-💼 [LinkedIn](https://linkedin.com/in/bhavika-chauhan-276b41332)
-✍️ [Medium](https://medium.com/@bhavika.engineered)
