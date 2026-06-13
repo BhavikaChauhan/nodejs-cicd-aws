@@ -270,15 +270,3 @@ jobs:
                 ${CURRENT_IMAGE}
             fi
             exit 1
-
-      - name: Notify Slack — production deploy
-        if: always()
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
-          payload: |
-            {
-              "text": "${{ job.status == 'success' && '🚀' || '🔥' }} *PRODUCTION Deploy* ${{ job.status }}\n*Repo:* ${{ github.repository }}\n*Commit:* ${{ github.sha }}\n*By:* ${{ github.actor }}\n*Image:* ${{ needs.build.outputs.image-uri }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
