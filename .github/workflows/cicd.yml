@@ -1,6 +1,6 @@
 cd ~/nodejs-cicd-aws
 cat > .github/workflows/cicd.yml << 'EOF'
-name: CI/CD Pipeline — AWS ECR + EC2
+name: CICD Pipeline AWS ECR EC2
 
 on:
   push:
