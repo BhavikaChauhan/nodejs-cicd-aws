@@ -1,6 +1,4 @@
-cd ~/nodejs-cicd-aws
-cat > .github/workflows/cicd.yml << 'EOF'
-name: CICD Pipeline AWS ECR EC2
+name: CICD Pipeline
 
 on:
   push:
@@ -15,51 +13,43 @@ env:
 
 jobs:
   test:
-    name: Lint & Test
+    name: Lint and Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Run linter
         run: npm run lint || true
-
       - name: Run tests
         run: npm test
 
   build:
-    name: Build & Push to ECR
+    name: Build and Push to ECR
     runs-on: ubuntu-latest
     needs: test
     if: github.event_name == 'push'
     outputs:
       image-tag: ${{ steps.meta.outputs.tag }}
       image-uri: ${{ steps.build-push.outputs.image }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
       - name: Generate image tag
         id: meta
         run: |
@@ -67,8 +57,7 @@ jobs:
           BRANCH="${{ github.ref_name }}"
           TAG="${BRANCH}-${SHA::8}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
-
-      - name: Build, tag & push image to ECR
+      - name: Build and push image to ECR
         id: build-push
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -83,14 +72,13 @@ jobs:
           echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
   deploy-staging:
-    name: Deploy → Staging
+    name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/develop'
     environment:
       name: staging
       url: http://${{ secrets.STAGING_EC2_IP }}:3000
-
     steps:
       - name: Deploy to staging EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -103,50 +91,35 @@ jobs:
             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export AWS_DEFAULT_REGION=${{ env.AWS_REGION }}
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-              docker login --username AWS --password-stdin \
-              $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
             IMAGE_URI="${{ needs.build.outputs.image-uri }}"
             CONTAINER_NAME="nodejs-app-staging"
             docker pull ${IMAGE_URI}
             CURRENT_IMAGE=$(docker inspect ${CONTAINER_NAME} --format='{{.Config.Image}}' 2>/dev/null || echo "none")
             docker stop ${CONTAINER_NAME} 2>/dev/null || true
             docker rm ${CONTAINER_NAME} 2>/dev/null || true
-            docker run -d \
-              --name ${CONTAINER_NAME} \
-              --restart unless-stopped \
-              -p ${{ env.APP_PORT }}:3000 \
-              -e NODE_ENV=staging \
-              -e APP_VERSION="${{ github.sha }}" \
-              ${IMAGE_URI}
-            echo "Waiting for health check..."
+            docker run -d --name ${CONTAINER_NAME} --restart unless-stopped -p ${{ env.APP_PORT }}:3000 -e NODE_ENV=staging -e APP_VERSION="${{ github.sha }}" ${IMAGE_URI}
             for i in {1..10}; do
               sleep 5
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${{ env.APP_PORT }}/health || echo "000")
               echo "Attempt ${i}: HTTP ${STATUS}"
-              if [ "$STATUS" = "200" ]; then
-                echo "Health check passed!"
-                exit 0
-              fi
+              if [ "$STATUS" = "200" ]; then echo "passed"; exit 0; fi
             done
-            echo "Health check failed — rolling back"
             docker stop ${CONTAINER_NAME} 2>/dev/null || true
             docker rm ${CONTAINER_NAME} 2>/dev/null || true
             if [ "${CURRENT_IMAGE}" != "none" ]; then
-              docker run -d --name ${CONTAINER_NAME} --restart unless-stopped \
-                -p ${{ env.APP_PORT }}:3000 -e NODE_ENV=staging ${CURRENT_IMAGE}
+              docker run -d --name ${CONTAINER_NAME} --restart unless-stopped -p ${{ env.APP_PORT }}:3000 -e NODE_ENV=staging ${CURRENT_IMAGE}
             fi
             exit 1
 
   deploy-production:
-    name: Deploy → Production
+    name: Deploy to Production
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
       url: http://${{ secrets.PROD_EC2_IP }}:3000
-
     steps:
       - name: Deploy to production EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -159,39 +132,23 @@ jobs:
             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export AWS_DEFAULT_REGION=${{ env.AWS_REGION }}
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
-              docker login --username AWS --password-stdin \
-              $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
             IMAGE_URI="${{ needs.build.outputs.image-uri }}"
             CONTAINER_NAME="nodejs-app-prod"
             docker pull ${IMAGE_URI}
             CURRENT_IMAGE=$(docker inspect ${CONTAINER_NAME} --format='{{.Config.Image}}' 2>/dev/null || echo "none")
             docker stop ${CONTAINER_NAME} 2>/dev/null || true
             docker rm ${CONTAINER_NAME} 2>/dev/null || true
-            docker run -d \
-              --name ${CONTAINER_NAME} \
-              --restart unless-stopped \
-              -p ${{ env.APP_PORT }}:3000 \
-              -e NODE_ENV=production \
-              -e APP_VERSION="${{ github.sha }}" \
-              ${IMAGE_URI}
-            echo "Waiting for health check..."
+            docker run -d --name ${CONTAINER_NAME} --restart unless-stopped -p ${{ env.APP_PORT }}:3000 -e NODE_ENV=production -e APP_VERSION="${{ github.sha }}" ${IMAGE_URI}
             for i in {1..10}; do
               sleep 5
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${{ env.APP_PORT }}/health || echo "000")
               echo "Attempt ${i}: HTTP ${STATUS}"
-              if [ "$STATUS" = "200" ]; then
-                echo "Production deploy successful!"
-                docker image prune -f
-                exit 0
-              fi
+              if [ "$STATUS" = "200" ]; then docker image prune -f; exit 0; fi
             done
-            echo "Production health check failed — rolling back"
             docker stop ${CONTAINER_NAME} 2>/dev/null || true
             docker rm ${CONTAINER_NAME} 2>/dev/null || true
             if [ "${CURRENT_IMAGE}" != "none" ]; then
-              docker run -d --name ${CONTAINER_NAME} --restart unless-stopped \
-                -p ${{ env.APP_PORT }}:3000 -e NODE_ENV=production ${CURRENT_IMAGE}
+              docker run -d --name ${CONTAINER_NAME} --restart unless-stopped -p ${{ env.APP_PORT }}:3000 -e NODE_ENV=production ${CURRENT_IMAGE}
             fi
             exit 1
-EOF
