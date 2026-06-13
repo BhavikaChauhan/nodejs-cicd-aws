@@ -76,9 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/develop'
-    environment:
-      name: staging
-      url: http://${{ secrets.STAGING_EC2_IP }}:3000
+    environment: staging
     steps:
       - name: Deploy to staging EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -117,9 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
-    environment:
-      name: production
-      url: http://${{ secrets.PROD_EC2_IP }}:3000
+    environment: production
     steps:
       - name: Deploy to production EC2
         uses: appleboy/ssh-action@v1.0.3
