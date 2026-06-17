@@ -108,6 +108,45 @@ jobs:
               docker run -d --name ${CONTAINER_NAME} --restart unless-stopped -p ${{ env.APP_PORT }}:3000 -e NODE_ENV=staging ${CURRENT_IMAGE}
             fi
             exit 1
+             - name: Notify Slack — staging success
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "✅ *Staging deploy succeeded*",
+              "attachments": [{
+                "color": "#36a64f",
+                "fields": [
+                  {"title": "Commit", "value": "${{ github.sha }}", "short": true},
+                  {"title": "Author", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Health", "value": "http://${{ secrets.STAGING_EC2_IP }}:3000/health", "short": false}
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+ 
+      - name: Notify Slack — staging failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "❌ *Staging deploy FAILED — rolled back*",
+              "attachments": [{
+                "color": "#d00000",
+                "fields": [
+                  {"title": "Commit", "value": "${{ github.sha }}", "short": true},
+                  {"title": "Author", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Logs", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
   deploy-production:
     name: Deploy to Production
