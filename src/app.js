@@ -1,6 +1,19 @@
 const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Security headers — hides Express, prevents common attacks
+app.use(helmet());
+ 
+// Rate limiting — 100 requests per minute per IP
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests, slow down.' }
+});
+app.use(limiter);
 
 app.use(express.json());
 
