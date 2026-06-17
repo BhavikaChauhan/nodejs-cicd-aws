@@ -18,15 +18,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
+
       - name: Install dependencies
         run: npm ci
+
       - name: Run linter
         run: npm run lint
+
       - name: Run tests
         run: npm test
 
@@ -41,15 +45,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
       - name: Generate image tag
         id: meta
         run: |
@@ -57,6 +64,7 @@ jobs:
           BRANCH="${{ github.ref_name }}"
           TAG="${BRANCH}-${SHA::8}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
       - name: Build and push image to ECR
         id: build-push
         env:
@@ -71,7 +79,7 @@ jobs:
           docker push $LATEST_TAG
           echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
-deploy-staging:
+  deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: build
@@ -94,22 +102,29 @@ deploy-staging:
             CURRENT_IMAGE=$(docker inspect ${CONTAINER_NAME} --format='{{.Config.Image}}' 2>/dev/null || echo "none")
             docker stop ${CONTAINER_NAME} 2>/dev/null || true
             docker rm ${CONTAINER_NAME} 2>/dev/null || true
-            docker run -d --name ${CONTAINER_NAME} --restart unless-stopped \
+            docker run -d \
+              --name ${CONTAINER_NAME} \
+              --restart unless-stopped \
               -p ${{ env.APP_PORT }}:3000 \
               -e NODE_ENV=staging \
-              -e APP_VERSION="${{ github.sha }}" ${IMAGE_URI}
+              -e APP_VERSION="${{ github.sha }}" \
+              ${IMAGE_URI}
             for i in {1..10}; do
               sleep 5
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${{ env.APP_PORT }}/health || echo "000")
               echo "Attempt ${i}: HTTP ${STATUS}"
-              if [ "$STATUS" = "200" ]; then echo "passed"; exit 0; fi
+              if [ "$STATUS" = "200" ]; then echo "Health check passed"; exit 0; fi
             done
+            echo "Health check failed — rolling back"
             docker stop ${CONTAINER_NAME} 2>/dev/null || true
             docker rm ${CONTAINER_NAME} 2>/dev/null || true
             if [ "${CURRENT_IMAGE}" != "none" ]; then
-              docker run -d --name ${CONTAINER_NAME} --restart unless-stopped \
+              docker run -d \
+                --name ${CONTAINER_NAME} \
+                --restart unless-stopped \
                 -p ${{ env.APP_PORT }}:3000 \
-                -e NODE_ENV=staging ${CURRENT_IMAGE}
+                -e NODE_ENV=staging \
+                ${CURRENT_IMAGE}
             fi
             exit 1
 
@@ -125,7 +140,9 @@ deploy-staging:
                 "fields": [
                   {"title": "Commit", "value": "${{ github.sha }}", "short": true},
                   {"title": "Author", "value": "${{ github.actor }}", "short": true},
-                  {"title": "Health", "value": "http://${{ secrets.STAGING_EC2_IP }}:3000/health", "short": false}
+                  {"title": "Branch", "value": "${{ github.ref_name }}", "short": true},
+                  {"title": "Health", "value": "http://${{ secrets.STAGING_EC2_IP }}:3000/health", "short": false},
+                  {"title": "Logs", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
                 ]
               }]
             }
@@ -145,6 +162,7 @@ deploy-staging:
                 "fields": [
                   {"title": "Commit", "value": "${{ github.sha }}", "short": true},
                   {"title": "Author", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Branch", "value": "${{ github.ref_name }}", "short": true},
                   {"title": "Logs", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
                 ]
               }]
@@ -171,23 +189,82 @@ deploy-staging:
             export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
             export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             export AWS_DEFAULT_REGION=${{ env.AWS_REGION }}
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+              docker login --username AWS --password-stdin \
+              $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
             IMAGE_URI="${{ needs.build.outputs.image-uri }}"
             CONTAINER_NAME="nodejs-app-prod"
             docker pull ${IMAGE_URI}
             CURRENT_IMAGE=$(docker inspect ${CONTAINER_NAME} --format='{{.Config.Image}}' 2>/dev/null || echo "none")
             docker stop ${CONTAINER_NAME} 2>/dev/null || true
             docker rm ${CONTAINER_NAME} 2>/dev/null || true
-            docker run -d --name ${CONTAINER_NAME} --restart unless-stopped -p ${{ env.APP_PORT }}:3000 -e NODE_ENV=production -e APP_VERSION="${{ github.sha }}" ${IMAGE_URI}
+            docker run -d \
+              --name ${CONTAINER_NAME} \
+              --restart unless-stopped \
+              -p ${{ env.APP_PORT }}:3000 \
+              -e NODE_ENV=production \
+              -e APP_VERSION="${{ github.sha }}" \
+              ${IMAGE_URI}
             for i in {1..10}; do
               sleep 5
               STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${{ env.APP_PORT }}/health || echo "000")
               echo "Attempt ${i}: HTTP ${STATUS}"
-              if [ "$STATUS" = "200" ]; then docker image prune -f; exit 0; fi
+              if [ "$STATUS" = "200" ]; then
+                docker image prune -f
+                exit 0
+              fi
             done
+            echo "Health check failed — rolling back"
             docker stop ${CONTAINER_NAME} 2>/dev/null || true
             docker rm ${CONTAINER_NAME} 2>/dev/null || true
             if [ "${CURRENT_IMAGE}" != "none" ]; then
-              docker run -d --name ${CONTAINER_NAME} --restart unless-stopped -p ${{ env.APP_PORT }}:3000 -e NODE_ENV=production ${CURRENT_IMAGE}
+              docker run -d \
+                --name ${CONTAINER_NAME} \
+                --restart unless-stopped \
+                -p ${{ env.APP_PORT }}:3000 \
+                -e NODE_ENV=production \
+                ${CURRENT_IMAGE}
             fi
             exit 1
+
+      - name: Notify Slack — production success
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "🚀 *Production deploy succeeded*",
+              "attachments": [{
+                "color": "#36a64f",
+                "fields": [
+                  {"title": "Commit", "value": "${{ github.sha }}", "short": true},
+                  {"title": "Author", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Branch", "value": "${{ github.ref_name }}", "short": true},
+                  {"title": "Logs", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Notify Slack — production failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "🔥 *Production deploy FAILED — rolled back*",
+              "attachments": [{
+                "color": "#d00000",
+                "fields": [
+                  {"title": "Commit", "value": "${{ github.sha }}", "short": true},
+                  {"title": "Author", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Branch", "value": "${{ github.ref_name }}", "short": true},
+                  {"title": "Logs", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
