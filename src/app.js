@@ -52,8 +52,20 @@ app.get('/api/products/:id', (req, res) => {
   res.json({ success: true, data: product });
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port} [${process.env.NODE_ENV || 'development'}]`);
+// 404 handler — must be after all routes
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: 'Route not found' });
+});
+ 
+// Global error handler — catches any unhandled throw
+app.use((err, req, res, next) => {  // eslint-disable-line no-unused-vars
+  console.error(err.stack);
+  res.status(500).json({ success: false, error: 'Internal server error' });
 });
 
-module.exports = app;
+const server = app.listen(port, () => {
+  console.log(`Server running on port ${port} [${process.env.NODE_ENV || 'development'}]`);
+});
+ 
+// Export both so tests can close the server cleanly
+module.exports = { app, server };
