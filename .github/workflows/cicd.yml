@@ -109,9 +109,9 @@ jobs:
             fi
             exit 1
              - name: Notify Slack — staging success
-        if: success()
-        uses: slackapi/slack-github-action@v1.26.0
-        with:
+               if: success()
+              uses: slackapi/slack-github-action@v1.26.0
+              with:
           payload: |
             {
               "text": "✅ *Staging deploy succeeded*",
