@@ -4,7 +4,7 @@
   "description": "Production-grade Node.js API with full CI/CD pipeline to AWS",
   "main": "src/app.js",
   "scripts": {
-    "start": "node src/app.js",
+        "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test": "jest --coverage --testTimeout=10000",
     "lint": "eslint src/"
