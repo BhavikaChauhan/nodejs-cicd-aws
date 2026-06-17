@@ -1,6 +1,19 @@
 const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Security headers — hides Express, prevents common attacks
+app.use(helmet());
+ 
+// Rate limiting — 100 requests per minute per IP
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests, slow down.' }
+});
+app.use(limiter);
 
 app.use(express.json());
 
@@ -39,8 +52,20 @@ app.get('/api/products/:id', (req, res) => {
   res.json({ success: true, data: product });
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port} [${process.env.NODE_ENV || 'development'}]`);
+// 404 handler — must be after all routes
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: 'Route not found' });
+});
+ 
+// Global error handler — catches any unhandled throw
+app.use((err, req, res, next) => {  // eslint-disable-line no-unused-vars
+  console.error(err.stack);
+  res.status(500).json({ success: false, error: 'Internal server error' });
 });
 
-module.exports = app;
+const server = app.listen(port, () => {
+  console.log(`Server running on port ${port} [${process.env.NODE_ENV || 'development'}]`);
+});
+ 
+// Export both so tests can close the server cleanly
+module.exports = { app, server };
