@@ -1,5 +1,5 @@
 const request = require('supertest');
-const { app, server } = require('../src/app');
+const { app, server } = require('../src/app'); // eslint-disable-line no-unused-vars
 
 describe('Health Check', () => {
   it('GET /health should return 200 and healthy status', async () => {
