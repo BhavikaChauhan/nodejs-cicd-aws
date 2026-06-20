@@ -6,20 +6,10 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(helmet());
-
-app.use(rateLimit({
-  windowMs: 60 * 1000,
-  max: 100,
-  message: { success: false, error: 'Too many requests, slow down.' }
-}));
-
+app.use(rateLimit({ windowMs: 60 * 1000, max: 100, message: { success: false, error: 'Too many requests, slow down.' } }));
 app.use(express.json());
 
-// Health check — returns 500 only in staging/prod environments
 app.get('/health', (req, res) => {
-  if (process.env.NODE_ENV === 'staging' || process.env.NODE_ENV === 'production') {
-    return res.status(500).json({ status: 'broken' });
-  }
   res.status(200).json({
     status: 'healthy',
     environment: process.env.NODE_ENV || 'development',
@@ -29,11 +19,7 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json({
-    message: 'Product API is running',
-    environment: process.env.NODE_ENV || 'development',
-    version: process.env.APP_VERSION || '1.0.0'
-  });
+  res.json({ message: 'Product API is running', environment: process.env.NODE_ENV || 'development', version: process.env.APP_VERSION || '1.0.0' });
 });
 
 const products = [
@@ -52,12 +38,10 @@ app.get('/api/products/:id', (req, res) => {
   res.json({ success: true, data: product });
 });
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' });
 });
 
-// Global error handler
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   console.error(err.stack);
   res.status(500).json({ success: false, error: 'Internal server error' });
