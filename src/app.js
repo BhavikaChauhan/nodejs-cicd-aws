@@ -1,10 +1,23 @@
 const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Security headers — hides Express, prevents clickjacking/XSS
+app.use(helmet());
+
+// Rate limiting — 100 requests per minute per IP
+app.use(rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { success: false, error: 'Too many requests, slow down.' }
+}));
+
 app.use(express.json());
 
-// Health check endpoint — used by CI/CD rollback logic
+// Health check — used by CI/CD rollback logic
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -14,13 +27,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Sample products API — mimics a real client app
-const products = [
-  { id: 1, name: 'Cloud Storage Plan', price: 9.99, category: 'cloud' },
-  { id: 2, name: 'DevOps Monitoring Suite', price: 49.99, category: 'devops' },
-  { id: 3, name: 'CI/CD Pipeline Setup', price: 199.99, category: 'devops' },
-];
-
 app.get('/', (req, res) => {
   res.json({
     message: 'Product API is running',
@@ -28,6 +34,12 @@ app.get('/', (req, res) => {
     version: process.env.APP_VERSION || '1.0.0'
   });
 });
+
+const products = [
+  { id: 1, name: 'Cloud Storage Plan', price: 9.99, category: 'cloud' },
+  { id: 2, name: 'DevOps Monitoring Suite', price: 49.99, category: 'devops' },
+  { id: 3, name: 'CI/CD Pipeline Setup', price: 199.99, category: 'devops' },
+];
 
 app.get('/api/products', (req, res) => {
   res.json({ success: true, count: products.length, data: products });
@@ -39,8 +51,19 @@ app.get('/api/products/:id', (req, res) => {
   res.json({ success: true, data: product });
 });
 
-app.listen(port, () => {
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: 'Route not found' });
+});
+
+// Global error handler
+app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+  console.error(err.stack);
+  res.status(500).json({ success: false, error: 'Internal server error' });
+});
+
+const server = app.listen(port, () => {
   console.log(`Server running on port ${port} [${process.env.NODE_ENV || 'development'}]`);
 });
 
-module.exports = app;
+module.exports = { app, server };
