@@ -5,10 +5,8 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Security headers — hides Express, prevents clickjacking/XSS
 app.use(helmet());
 
-// Rate limiting — 100 requests per minute per IP
 app.use(rateLimit({
   windowMs: 60 * 1000,
   max: 100,
@@ -17,9 +15,17 @@ app.use(rateLimit({
 
 app.use(express.json());
 
-// Health check — BROKEN for rollback test
+// Health check — returns 500 only in staging/prod environments
 app.get('/health', (req, res) => {
-  res.status(500).json({ status: 'broken' });
+  if (process.env.NODE_ENV === 'staging' || process.env.NODE_ENV === 'production') {
+    return res.status(500).json({ status: 'broken' });
+  }
+  res.status(200).json({
+    status: 'healthy',
+    environment: process.env.NODE_ENV || 'development',
+    version: process.env.APP_VERSION || '1.0.0',
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.get('/', (req, res) => {
