@@ -17,14 +17,9 @@ app.use(rateLimit({
 
 app.use(express.json());
 
-// Health check — used by CI/CD rollback logic
+// Health check — BROKEN for rollback test
 app.get('/health', (req, res) => {
   res.status(500).json({ status: 'broken' });
-});
-    environment: process.env.NODE_ENV || 'development',
-    version: process.env.APP_VERSION || '1.0.0',
-    timestamp: new Date().toISOString()
-  });
 });
 
 app.get('/', (req, res) => {
